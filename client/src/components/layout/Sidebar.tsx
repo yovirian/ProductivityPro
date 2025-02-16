@@ -5,6 +5,7 @@ import {
   Timer,
   CheckSquare,
   Menu,
+  Settings,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -16,6 +17,7 @@ const navigation = [
   { name: "Calendar", href: "/calendar", icon: Calendar },
   { name: "Tasks", href: "/tasks", icon: CheckSquare },
   { name: "Timer", href: "/timer", icon: Timer },
+  { name: "Settings", href: "/settings", icon: Settings },
 ];
 
 export function Sidebar() {
