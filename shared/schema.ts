@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, timestamp, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, boolean, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -26,6 +26,26 @@ export const healthMetrics = pgTable("health_metrics", {
   sleepHours: integer("sleep_hours").notNull(),
 });
 
+export const devices = pgTable("devices", {
+  id: serial("id").primaryKey(),
+  deviceId: text("device_id").notNull().unique(),
+  deviceType: text("device_type").notNull(),
+  name: text("name").notNull(),
+  lastSync: timestamp("last_sync"),
+  metadata: jsonb("metadata"),
+});
+
+export const deviceReadings = pgTable("device_readings", {
+  id: serial("id").primaryKey(),
+  deviceId: text("device_id").notNull(),
+  timestamp: timestamp("timestamp").notNull(),
+  readingType: text("reading_type").notNull(),
+  value: jsonb("value").notNull(),
+});
+
+export const insertDeviceSchema = createInsertSchema(devices).omit({ id: true, lastSync: true });
+export const insertDeviceReadingSchema = createInsertSchema(deviceReadings).omit({ id: true });
+
 export const insertEventSchema = createInsertSchema(events).omit({ id: true });
 export const insertTaskSchema = createInsertSchema(tasks).omit({ id: true });
 export const insertHealthMetricSchema = createInsertSchema(healthMetrics).omit({ id: true });
@@ -36,3 +56,7 @@ export type Task = typeof tasks.$inferSelect;
 export type InsertTask = z.infer<typeof insertTaskSchema>;
 export type HealthMetric = typeof healthMetrics.$inferSelect;
 export type InsertHealthMetric = z.infer<typeof insertHealthMetricSchema>;
+export type Device = typeof devices.$inferSelect;
+export type InsertDevice = z.infer<typeof insertDeviceSchema>;
+export type DeviceReading = typeof deviceReadings.$inferSelect;
+export type InsertDeviceReading = z.infer<typeof insertDeviceReadingSchema>;

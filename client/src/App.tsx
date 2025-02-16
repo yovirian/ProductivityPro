@@ -7,6 +7,7 @@ import Dashboard from "./pages/Dashboard";
 import Calendar from "./pages/Calendar";
 import Timer from "./pages/Timer";
 import Tasks from "./pages/Tasks";
+import Settings from "./pages/Settings";
 import NotFound from "./pages/not-found";
 
 function Router() {
@@ -20,6 +21,7 @@ function Router() {
             <Route path="/calendar" component={Calendar} />
             <Route path="/timer" component={Timer} />
             <Route path="/tasks" component={Tasks} />
+            <Route path="/settings" component={Settings} />
             <Route component={NotFound} />
           </Switch>
         </div>

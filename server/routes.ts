@@ -1,9 +1,97 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import { WebSocket, WebSocketServer } from "ws";
 import { storage } from "./storage";
-import { insertEventSchema, insertTaskSchema, insertHealthMetricSchema } from "@shared/schema";
+import { 
+  insertEventSchema, 
+  insertTaskSchema, 
+  insertHealthMetricSchema,
+  insertDeviceSchema,
+  insertDeviceReadingSchema
+} from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  const httpServer = createServer(app);
+
+  // Setup WebSocket server for real-time device updates
+  const wss = new WebSocketServer({ 
+    server: httpServer,
+    path: "/ws/devices" // Dedicated path for device WebSocket
+  });
+
+  wss.on("connection", (ws) => {
+    console.log("New WebSocket connection established");
+
+    ws.on("message", async (message) => {
+      try {
+        const data = JSON.parse(message.toString());
+
+        if (data.type === "device_reading") {
+          const reading = insertDeviceReadingSchema.parse(data.payload);
+          const created = await storage.createDeviceReading(reading);
+          await storage.updateDeviceLastSync(reading.deviceId);
+
+          // Broadcast the new reading to all connected clients
+          wss.clients.forEach((client) => {
+            if (client.readyState === WebSocket.OPEN) {
+              client.send(JSON.stringify({
+                type: "new_reading",
+                payload: created,
+              }));
+            }
+          });
+        }
+      } catch (error) {
+        console.error("WebSocket error:", error);
+        ws.send(JSON.stringify({ error: "Invalid message format" }));
+      }
+    });
+
+    ws.on("error", (error) => {
+      console.error("WebSocket error:", error);
+    });
+
+    ws.on("close", () => {
+      console.log("Client disconnected");
+    });
+  });
+
+  // IoT Device Routes
+  app.get("/api/devices", async (_req, res) => {
+    const devices = await storage.getDevices();
+    res.json(devices);
+  });
+
+  app.get("/api/devices/:deviceId", async (req, res) => {
+    const device = await storage.getDeviceById(req.params.deviceId);
+    if (!device) {
+      res.status(404).json({ message: "Device not found" });
+      return;
+    }
+    res.json(device);
+  });
+
+  app.post("/api/devices", async (req, res) => {
+    const device = insertDeviceSchema.parse(req.body);
+    const created = await storage.createDevice(device);
+    res.json(created);
+  });
+
+  app.get("/api/devices/:deviceId/readings", async (req, res) => {
+    const readings = await storage.getDeviceReadings(req.params.deviceId);
+    res.json(readings);
+  });
+
+  app.post("/api/devices/:deviceId/readings", async (req, res) => {
+    const reading = insertDeviceReadingSchema.parse({
+      ...req.body,
+      deviceId: req.params.deviceId,
+    });
+    const created = await storage.createDeviceReading(reading);
+    await storage.updateDeviceLastSync(req.params.deviceId);
+    res.json(created);
+  });
+
   // Events routes
   app.get("/api/events", async (_req, res) => {
     const events = await storage.getEvents();
@@ -55,6 +143,5 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(created);
   });
 
-  const httpServer = createServer(app);
   return httpServer;
 }
