@@ -2,7 +2,8 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useEffect, useState } from "react";
 import { format } from "date-fns";
-import { Plus, Loader2, SmartphoneNfc } from "lucide-react";
+import { Plus, Loader2, SmartphoneNfc, Wifi, WifiOff } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import {
   Dialog,
   DialogContent,
@@ -26,6 +27,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardContent,
+} from "@/components/ui/card";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertDeviceSchema } from "@shared/schema";
@@ -33,7 +40,9 @@ import type { Device } from "@shared/schema";
 
 export function DeviceManager() {
   const [isOpen, setIsOpen] = useState(false);
+  const [wsStatus, setWsStatus] = useState<'connected' | 'disconnected'>('disconnected');
   const [ws, setWs] = useState<WebSocket | null>(null);
+
   const form = useForm({
     resolver: zodResolver(insertDeviceSchema),
     defaultValues: {
@@ -48,18 +57,18 @@ export function DeviceManager() {
   useEffect(() => {
     function connect() {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${window.location.host}/ws/devices`; // Use dedicated path
+      const wsUrl = `${protocol}//${window.location.host}/ws/devices`;
       const socket = new WebSocket(wsUrl);
 
       socket.onopen = () => {
         console.log('WebSocket connected');
+        setWsStatus('connected');
       };
 
       socket.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
           if (data.type === "new_reading") {
-            // Update device readings in real-time
             queryClient.invalidateQueries({ queryKey: [`/api/devices/${data.payload.deviceId}/readings`] });
           }
         } catch (error) {
@@ -69,20 +78,20 @@ export function DeviceManager() {
 
       socket.onerror = (error) => {
         console.error("WebSocket error:", error);
-        // Attempt to reconnect after error
+        setWsStatus('disconnected');
         setTimeout(connect, 5000);
       };
 
       socket.onclose = () => {
         console.log('WebSocket disconnected');
-        // Attempt to reconnect after close
+        setWsStatus('disconnected');
         setTimeout(connect, 5000);
       };
 
       setWs(socket);
     }
 
-    connect(); // Initial connection
+    connect();
 
     return () => {
       if (ws) {
@@ -110,12 +119,21 @@ export function DeviceManager() {
     addDevice.mutate(data);
   });
 
+  const connectionUrl = `${window.location.protocol}//${window.location.host}/connect`;
+
   if (isLoading) return <div>Loading...</div>;
 
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold">Connected Devices</h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-2xl font-bold">Connected Devices</h2>
+          {wsStatus === 'connected' ? (
+            <Wifi className="h-5 w-5 text-green-500" />
+          ) : (
+            <WifiOff className="h-5 w-5 text-red-500" />
+          )}
+        </div>
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
           <DialogTrigger asChild>
             <Button>
@@ -123,95 +141,131 @@ export function DeviceManager() {
               Add Device
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
-              <DialogTitle>Add New Device</DialogTitle>
+              <DialogTitle>Connect New Device</DialogTitle>
             </DialogHeader>
-            <Form {...form}>
-              <form onSubmit={onSubmit} className="space-y-4">
-                <FormField
-                  control={form.control}
-                  name="deviceId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Device ID</FormLabel>
-                      <FormControl>
-                        <Input 
-                          {...field} 
-                          placeholder="e.g., smartwatch_001, scale_001"
-                        />
-                      </FormControl>
-                      <p className="text-sm text-muted-foreground">
-                        Enter a unique identifier for your device. This will be used to track data from your device.
-                      </p>
-                    </FormItem>
-                  )}
+            <div className="grid gap-6">
+              <div className="flex flex-col items-center gap-4 p-4 border rounded-lg bg-muted/50">
+                <p className="text-sm text-center text-muted-foreground">
+                  Scan this QR code with your smartphone to connect it to the application
+                </p>
+                <QRCodeSVG
+                  value={connectionUrl}
+                  size={200}
+                  level="H"
+                  includeMargin
                 />
-                <FormField
-                  control={form.control}
-                  name="deviceType"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Device Type</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                      >
+              </div>
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-background px-2 text-muted-foreground">
+                    Or add manually
+                  </span>
+                </div>
+              </div>
+              <Form {...form}>
+                <form onSubmit={onSubmit} className="space-y-4">
+                  <FormField
+                    control={form.control}
+                    name="deviceId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Device ID</FormLabel>
                         <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select device type" />
-                          </SelectTrigger>
+                          <Input 
+                            {...field} 
+                            placeholder="e.g., smartwatch_001, scale_001"
+                          />
                         </FormControl>
-                        <SelectContent>
-                          <SelectItem value="smartwatch">Smartwatch</SelectItem>
-                          <SelectItem value="scale">Smart Scale</SelectItem>
-                          <SelectItem value="phone">Smartphone</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Device Name</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-                <Button type="submit" className="w-full" disabled={addDevice.isPending}>
-                  {addDevice.isPending && (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  )}
-                  Add Device
-                </Button>
-              </form>
-            </Form>
+                        <p className="text-sm text-muted-foreground">
+                          Enter a unique identifier for your device
+                        </p>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="deviceType"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Device Type</FormLabel>
+                        <Select
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select device type" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="smartwatch">Smartwatch</SelectItem>
+                            <SelectItem value="scale">Smart Scale</SelectItem>
+                            <SelectItem value="phone">Smartphone</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Device Name</FormLabel>
+                        <FormControl>
+                          <Input {...field} placeholder="e.g., My iPhone" />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                  <Button type="submit" className="w-full" disabled={addDevice.isPending}>
+                    {addDevice.isPending && (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    )}
+                    Add Device
+                  </Button>
+                </form>
+              </Form>
+            </div>
           </DialogContent>
         </Dialog>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {devices?.map((device) => (
-          <div
-            key={device.deviceId}
-            className="rounded-lg border p-4 space-y-2"
-          >
-            <div className="flex items-center gap-2">
-              <SmartphoneNfc className="h-5 w-5 text-primary" />
-              <h3 className="font-semibold">{device.name}</h3>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              Type: {device.deviceType}
-            </p>
-            <p className="text-sm text-muted-foreground">
-              Last Sync: {device.lastSync ? format(new Date(device.lastSync), "PPp") : "Never"}
-            </p>
-          </div>
+          <Card key={device.deviceId}>
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <SmartphoneNfc className="h-5 w-5 text-primary" />
+                {device.name}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                Type: {device.deviceType}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Last Sync: {device.lastSync ? format(new Date(device.lastSync), "PPp") : "Never"}
+              </p>
+              <div className="mt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => {
+                    // Open detailed device view/settings
+                  }}
+                >
+                  Manage Device
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         ))}
       </div>
     </div>
