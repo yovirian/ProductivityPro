@@ -1,6 +1,8 @@
+import { useQuery } from "@tanstack/react-query";
 import { HealthMetrics } from "@/components/health/HealthMetrics";
 import { StatisticsView } from "@/components/stats/StatisticsView";
 import { TaskList } from "@/components/tasks/TaskList";
+import { SensorDataView } from "@/components/sensors/SensorDataView";
 import {
   Card,
   CardContent,
@@ -8,8 +10,18 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import type { Device } from "@shared/schema";
 
 export default function Dashboard() {
+  const { data: devices } = useQuery<Device[]>({
+    queryKey: ["/api/devices"],
+  });
+
+  // Find the first connected smartphone device
+  const activePhone = devices?.find(
+    (device) => device.deviceType === "phone" && device.lastSync
+  );
+
   return (
     <div className="space-y-8">
       <div>
@@ -20,6 +32,13 @@ export default function Dashboard() {
       </div>
 
       <HealthMetrics />
+
+      {activePhone && (
+        <div>
+          <h2 className="text-2xl font-semibold mb-4">Device Sensors</h2>
+          <SensorDataView deviceId={activePhone.deviceId} />
+        </div>
+      )}
 
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
