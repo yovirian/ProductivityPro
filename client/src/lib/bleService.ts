@@ -1,3 +1,47 @@
+declare global {
+  interface Navigator {
+    bluetooth: {
+      requestDevice(options: RequestDeviceOptions): Promise<BluetoothDevice>;
+    };
+  }
+
+  interface RequestDeviceOptions {
+    filters: Array<{
+      services?: string[];
+      name?: string;
+      namePrefix?: string;
+      manufacturerId?: number;
+    }>;
+    optionalServices?: string[];
+  }
+
+  interface BluetoothDevice {
+    id: string;
+    name: string | null;
+    gatt?: {
+      connect(): Promise<BluetoothRemoteGATTServer>;
+    };
+    addEventListener(type: string, listener: EventListener): void;
+    removeEventListener(type: string, listener: EventListener): void;
+  }
+
+  interface BluetoothRemoteGATTServer {
+    device: BluetoothDevice;
+    connected: boolean;
+    connect(): Promise<BluetoothRemoteGATTServer>;
+    disconnect(): void;
+    getPrimaryService(service: string): Promise<BluetoothRemoteGATTService>;
+  }
+
+  interface BluetoothRemoteGATTService {
+    getCharacteristic(characteristic: string): Promise<BluetoothRemoteGATTCharacteristic>;
+  }
+
+  interface BluetoothRemoteGATTCharacteristic {
+    readValue(): Promise<DataView>;
+  }
+}
+
 import { toast } from "@/hooks/use-toast";
 
 export type BLEDevice = {
@@ -12,7 +56,7 @@ class BLEService {
     if (!navigator.bluetooth) {
       toast({
         title: "Bluetooth Not Supported",
-        description: "Your browser doesn't support Bluetooth connectivity.",
+        description: "Your browser doesn't support Bluetooth connectivity. Please use a modern browser like Chrome.",
         variant: "destructive",
       });
       return null;
@@ -21,12 +65,21 @@ class BLEService {
     try {
       const device = await navigator.bluetooth.requestDevice({
         filters: [
-          { services: ['health_thermometer'] },
-          { services: ['heart_rate'] },
-          { services: ['battery_service'] }
+          { namePrefix: 'SmartWatch' },
+          { namePrefix: 'SmartScale' },
+          { namePrefix: 'FitnessTracker' }
         ],
-        optionalServices: ['device_information']
+        optionalServices: [
+          'battery_service',
+          'health_thermometer',
+          'heart_rate',
+          'device_information'
+        ]
       });
+
+      if (!device) {
+        throw new Error("No device selected");
+      }
 
       device.addEventListener('gattserverdisconnected', () => {
         this.handleDisconnection(device);
@@ -34,12 +87,22 @@ class BLEService {
 
       return device;
     } catch (error) {
-      console.error('Error requesting BLE device:', error);
-      toast({
-        title: "Connection Failed",
-        description: "Failed to connect to the device. Please try again.",
-        variant: "destructive",
-      });
+      if (error instanceof Error) {
+        if (error.message.includes('User cancelled')) {
+          toast({
+            title: "Scan Cancelled",
+            description: "Device scanning was cancelled. Please try again when ready.",
+            variant: "default",
+          });
+        } else {
+          console.error('Error requesting BLE device:', error);
+          toast({
+            title: "Connection Failed",
+            description: "Failed to connect to the device. Please ensure Bluetooth is enabled and try again.",
+            variant: "destructive",
+          });
+        }
+      }
       return null;
     }
   }
@@ -48,20 +111,24 @@ class BLEService {
     this.connectedDevices.delete(device.id);
     toast({
       title: "Device Disconnected",
-      description: `${device.name || 'Device'} has been disconnected`,
+      description: `${device.name || 'Device'} has been disconnected. Please try reconnecting if needed.`,
       variant: "default",
     });
   }
 
   async connectToDevice(device: BluetoothDevice): Promise<boolean> {
     try {
-      const server = await device.gatt?.connect();
+      if (!device.gatt) {
+        throw new Error("Device does not support GATT");
+      }
+
+      const server = await device.gatt.connect();
       if (!server) {
         throw new Error("Failed to connect to GATT server");
       }
 
       this.connectedDevices.set(device.id, { device, server });
-      
+
       toast({
         title: "Device Connected",
         description: `Successfully connected to ${device.name || 'device'}`,
@@ -73,7 +140,9 @@ class BLEService {
       console.error('Error connecting to device:', error);
       toast({
         title: "Connection Error",
-        description: "Failed to establish connection with the device",
+        description: error instanceof Error 
+          ? `Failed to connect: ${error.message}`
+          : "Failed to establish connection with the device. Please ensure the device is nearby and powered on.",
         variant: "destructive",
       });
       return false;
@@ -85,6 +154,11 @@ class BLEService {
     if (deviceEntry) {
       deviceEntry.server?.disconnect();
       this.connectedDevices.delete(deviceId);
+      toast({
+        title: "Device Disconnected",
+        description: "Device has been successfully disconnected.",
+        variant: "default",
+      });
     }
   }
 
@@ -104,7 +178,8 @@ class BLEService {
   }
 
   isConnected(deviceId: string): boolean {
-    return this.connectedDevices.has(deviceId);
+    const device = this.connectedDevices.get(deviceId);
+    return device?.server?.connected || false;
   }
 }
 
