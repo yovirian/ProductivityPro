@@ -8,6 +8,7 @@ import Calendar from "./pages/Calendar";
 import Timer from "./pages/Timer";
 import Tasks from "./pages/Tasks";
 import Settings from "./pages/Settings";
+import { ConnectPage } from "./pages/ConnectPage";
 import NotFound from "./pages/not-found";
 
 function Router() {
@@ -22,6 +23,7 @@ function Router() {
             <Route path="/timer" component={Timer} />
             <Route path="/tasks" component={Tasks} />
             <Route path="/settings" component={Settings} />
+            <Route path="/connect" component={ConnectPage} />
             <Route component={NotFound} />
           </Switch>
         </div>
