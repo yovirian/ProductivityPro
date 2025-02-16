@@ -136,8 +136,14 @@ export function DeviceManager() {
                     <FormItem>
                       <FormLabel>Device ID</FormLabel>
                       <FormControl>
-                        <Input {...field} />
+                        <Input 
+                          {...field} 
+                          placeholder="e.g., smartwatch_001, scale_001"
+                        />
                       </FormControl>
+                      <p className="text-sm text-muted-foreground">
+                        Enter a unique identifier for your device. This will be used to track data from your device.
+                      </p>
                     </FormItem>
                   )}
                 />
