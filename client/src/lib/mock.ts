@@ -1,5 +1,5 @@
 import { addDays, subDays } from "date-fns";
-import type { HealthMetric, Event, Task } from "@shared/schema";
+import type { HealthMetric, Event, Task, DeviceReading } from "@shared/schema";
 
 export const mockHealthMetrics: HealthMetric[] = Array.from({ length: 7 }).map((_, i) => ({
   id: i + 1,
@@ -41,3 +41,16 @@ export const mockTasks: Task[] = [
     dueDate: new Date(),
   },
 ];
+
+// Add mock sensor readings
+export const mockDeviceReadings: DeviceReading[] = Array.from({ length: 20 }).map((_, i) => ({
+  id: i + 1,
+  deviceId: "phone_001",
+  timestamp: new Date(Date.now() - (20 - i) * 60000), // Last 20 minutes of data
+  data: {
+    acceleration: Math.random() * 10,
+    orientation: Math.random() * 360,
+    motion: Math.random() > 0.5,
+    screenTime: Math.floor(Math.random() * 60),
+  },
+}));
