@@ -38,6 +38,8 @@ export function SensorDataView({ deviceId }: { deviceId: string }) {
     timestamp: format(new Date(reading.timestamp), "HH:mm:ss"),
   }));
 
+  const latestReading = readings[readings.length - 1]?.data;
+
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
       <Card>
@@ -47,7 +49,7 @@ export function SensorDataView({ deviceId }: { deviceId: string }) {
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">
-            {readings[readings.length - 1]?.data.acceleration?.toFixed(2)} m/s²
+            {latestReading?.acceleration?.toFixed(2) || 'N/A'} m/s²
           </div>
           <p className="text-xs text-muted-foreground">Latest reading</p>
         </CardContent>
@@ -60,7 +62,7 @@ export function SensorDataView({ deviceId }: { deviceId: string }) {
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">
-            {readings[readings.length - 1]?.data.motion ? "Active" : "Still"}
+            {latestReading?.motion ? "Active" : "Still"}
           </div>
           <p className="text-xs text-muted-foreground">Current state</p>
         </CardContent>
@@ -73,7 +75,7 @@ export function SensorDataView({ deviceId }: { deviceId: string }) {
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">
-            {readings[readings.length - 1]?.data.orientation?.toFixed(0)}°
+            {latestReading?.orientation?.toFixed(0) || 'N/A'}°
           </div>
           <p className="text-xs text-muted-foreground">Current angle</p>
         </CardContent>
@@ -81,14 +83,14 @@ export function SensorDataView({ deviceId }: { deviceId: string }) {
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Device Usage</CardTitle>
+          <CardTitle className="text-sm font-medium">Screen Time</CardTitle>
           <Smartphone className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">
-            {readings[readings.length - 1]?.data.screenTime} min
+            {latestReading?.screenTime || 0} min
           </div>
-          <p className="text-xs text-muted-foreground">Screen time</p>
+          <p className="text-xs text-muted-foreground">Active usage</p>
         </CardContent>
       </Card>
 
@@ -117,6 +119,13 @@ export function SensorDataView({ deviceId }: { deviceId: string }) {
                   dataKey="data.orientation"
                   name="Orientation"
                   stroke="hsl(var(--destructive))"
+                  strokeWidth={2}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="data.screenTime"
+                  name="Screen Time"
+                  stroke="hsl(var(--secondary))"
                   strokeWidth={2}
                 />
               </LineChart>
