@@ -39,12 +39,20 @@ export const deviceReadings = pgTable("device_readings", {
   id: serial("id").primaryKey(),
   deviceId: text("device_id").notNull(),
   timestamp: timestamp("timestamp").notNull(),
-  readingType: text("reading_type").notNull(),
-  value: jsonb("value").notNull(),
+  data: jsonb("data").notNull(),
 });
 
 export const insertDeviceSchema = createInsertSchema(devices).omit({ id: true, lastSync: true });
-export const insertDeviceReadingSchema = createInsertSchema(deviceReadings).omit({ id: true });
+export const insertDeviceReadingSchema = createInsertSchema(deviceReadings)
+  .omit({ id: true })
+  .extend({
+    data: z.object({
+      acceleration: z.number().optional(),
+      orientation: z.number().optional(),
+      motion: z.boolean().optional(),
+      screenTime: z.number().optional(),
+    }),
+  });
 
 export const insertEventSchema = createInsertSchema(events).omit({ id: true });
 export const insertTaskSchema = createInsertSchema(tasks).omit({ id: true });

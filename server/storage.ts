@@ -10,6 +10,7 @@ import {
   type DeviceReading,
   type InsertDeviceReading,
 } from "@shared/schema";
+import { mockDeviceReadings } from "../client/src/lib/mock";
 
 export interface IStorage {
   // Events
@@ -53,6 +54,11 @@ export class MemStorage implements IStorage {
     this.devices = new Map();
     this.deviceReadings = new Map();
     this.currentId = 1;
+
+    // Initialize with mock data
+    mockDeviceReadings.forEach(reading => {
+      this.deviceReadings.set(reading.id, reading);
+    });
   }
 
   async getEvents(): Promise<Event[]> {
@@ -141,9 +147,9 @@ export class MemStorage implements IStorage {
   }
 
   async getDeviceReadings(deviceId: string): Promise<DeviceReading[]> {
-    return Array.from(this.deviceReadings.values()).filter(
-      (reading) => reading.deviceId === deviceId
-    );
+    return Array.from(this.deviceReadings.values())
+      .filter(reading => reading.deviceId === deviceId)
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   }
 
   async createDeviceReading(reading: InsertDeviceReading): Promise<DeviceReading> {
