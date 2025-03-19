@@ -60,12 +60,8 @@ class BLEService {
   async requestDevice(): Promise<BluetoothDevice | null> {
     try {
       const device = await navigator.bluetooth.requestDevice({
-        filters: [
-          { services: ['health_thermometer'] },
-          { services: ['heart_rate'] },
-          { services: ['battery_service'] }
-        ],
-        optionalServices: ['generic_access', 'device_information']
+        acceptAllDevices: true,
+        optionalServices: ['generic_access', 'device_information', 'battery_service', 'health_thermometer', 'heart_rate']
       });
 
       device.addEventListener('gattserverdisconnected', () => this.handleDisconnection(device));
