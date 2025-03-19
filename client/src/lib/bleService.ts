@@ -47,10 +47,10 @@ import { toast } from "@/hooks/use-toast";
 
 interface DeviceEntry {
   device: BluetoothDevice;
-  server?: BluetoothRemoteGATTServer;
+  server: BluetoothRemoteGATTServer;
 }
 
-export class BLEService {
+class BLEService {
   private connectedDevices: Map<string, DeviceEntry>;
 
   constructor() {
@@ -60,25 +60,33 @@ export class BLEService {
   async requestDevice(): Promise<BluetoothDevice | null> {
     try {
       const device = await navigator.bluetooth.requestDevice({
-        acceptAllDevices: true,
-        optionalServices: ['battery_service']
+        filters: [
+          { services: ['health_thermometer'] },
+          { services: ['heart_rate'] },
+          { services: ['battery_service'] }
+        ],
+        optionalServices: ['generic_access', 'device_information']
       });
 
       device.addEventListener('gattserverdisconnected', () => this.handleDisconnection(device));
+
+      toast({
+        title: "Device Found",
+        description: `Found ${device.name || 'device'}. Attempting to connect...`,
+      });
+
       return device;
     } catch (error) {
       if (error instanceof Error) {
         if (error.message.includes('User cancelled')) {
           toast({
             title: "Scan Cancelled",
-            description: "Device scanning was cancelled. Please try again when ready.",
-            variant: "default",
+            description: "Please keep Bluetooth enabled and try again when ready.",
           });
         } else {
-          console.error('Error requesting BLE device:', error);
           toast({
             title: "Connection Failed",
-            description: "Failed to connect to the device. Please ensure Bluetooth is enabled and try again.",
+            description: "Make sure Bluetooth is enabled on your phone and try again.",
             variant: "destructive",
           });
         }
@@ -91,75 +99,57 @@ export class BLEService {
     this.connectedDevices.delete(device.id);
     toast({
       title: "Device Disconnected",
-      description: `${device.name || 'Device'} has been disconnected. Please try reconnecting if needed.`,
-      variant: "default",
+      description: `${device.name || 'Device'} was disconnected. Tap 'Scan BLE Device' to reconnect.`,
     });
   }
 
   async connectToDevice(device: BluetoothDevice): Promise<boolean> {
     try {
       if (!device.gatt) {
-        throw new Error("Device does not support GATT");
+        throw new Error("Bluetooth not supported on this device");
       }
 
       const server = await device.gatt.connect();
+
       if (!server) {
-        throw new Error("Failed to connect to GATT server");
+        throw new Error("Could not establish connection");
       }
 
       this.connectedDevices.set(device.id, { device, server });
 
-      toast({
-        title: "Device Connected",
-        description: `Successfully connected to ${device.name || 'device'}`,
-        variant: "default",
-      });
+      // Try to get device info
+      try {
+        const service = await server.getPrimaryService('device_information');
+        const characteristic = await service.getCharacteristic('manufacturer_name_string');
+        const value = await characteristic.readValue();
+        const manufacturer = new TextDecoder().decode(value);
+
+        toast({
+          title: "Connected Successfully",
+          description: `Connected to ${device.name || 'device'} (${manufacturer})`,
+        });
+      } catch (e) {
+        // Device info not available, show simple success message
+        toast({
+          title: "Connected Successfully",
+          description: `Connected to ${device.name || 'device'}`,
+        });
+      }
 
       return true;
     } catch (error) {
-      console.error('Error connecting to device:', error);
+      console.error('Connection error:', error);
       toast({
-        title: "Connection Error",
-        description: error instanceof Error 
-          ? `Failed to connect: ${error.message}`
-          : "Failed to establish connection with the device. Please ensure the device is nearby and powered on.",
+        title: "Connection Failed",
+        description: "Make sure your phone's Bluetooth is on and nearby.",
         variant: "destructive",
       });
       return false;
     }
   }
 
-  async disconnectDevice(deviceId: string) {
-    const deviceEntry = this.connectedDevices.get(deviceId);
-    if (deviceEntry) {
-      deviceEntry.server?.disconnect();
-      this.connectedDevices.delete(deviceId);
-      toast({
-        title: "Device Disconnected",
-        description: "Device has been successfully disconnected.",
-        variant: "default",
-      });
-    }
-  }
-
-  async getDeviceBatteryLevel(deviceId: string): Promise<number | null> {
-    const deviceEntry = this.connectedDevices.get(deviceId);
-    if (!deviceEntry?.server) return null;
-
-    try {
-      const service = await deviceEntry.server.getPrimaryService('battery_service');
-      const characteristic = await service.getCharacteristic('battery_level');
-      const value = await characteristic.readValue();
-      return value.getUint8(0);
-    } catch (error) {
-      console.error('Error reading battery level:', error);
-      return null;
-    }
-  }
-
   isConnected(deviceId: string): boolean {
-    const device = this.connectedDevices.get(deviceId);
-    return device?.server?.connected || false;
+    return this.connectedDevices.get(deviceId)?.server?.connected || false;
   }
 }
 
