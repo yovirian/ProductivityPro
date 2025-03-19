@@ -13,6 +13,7 @@ declare global {
       manufacturerId?: number;
     }>;
     optionalServices?: string[];
+    acceptAllDevices?: boolean;
   }
 
   interface BluetoothDevice {
@@ -44,47 +45,26 @@ declare global {
 
 import { toast } from "@/hooks/use-toast";
 
-export type BLEDevice = {
+interface DeviceEntry {
   device: BluetoothDevice;
   server?: BluetoothRemoteGATTServer;
-};
+}
 
-class BLEService {
-  private connectedDevices: Map<string, BLEDevice> = new Map();
+export class BLEService {
+  private connectedDevices: Map<string, DeviceEntry>;
+
+  constructor() {
+    this.connectedDevices = new Map();
+  }
 
   async requestDevice(): Promise<BluetoothDevice | null> {
-    if (!navigator.bluetooth) {
-      toast({
-        title: "Bluetooth Not Supported",
-        description: "Your browser doesn't support Bluetooth connectivity. Please use a modern browser like Chrome.",
-        variant: "destructive",
-      });
-      return null;
-    }
-
     try {
       const device = await navigator.bluetooth.requestDevice({
-        filters: [
-          { namePrefix: 'SmartWatch' },
-          { namePrefix: 'SmartScale' },
-          { namePrefix: 'FitnessTracker' }
-        ],
-        optionalServices: [
-          'battery_service',
-          'health_thermometer',
-          'heart_rate',
-          'device_information'
-        ]
+        acceptAllDevices: true,
+        optionalServices: ['battery_service']
       });
 
-      if (!device) {
-        throw new Error("No device selected");
-      }
-
-      device.addEventListener('gattserverdisconnected', () => {
-        this.handleDisconnection(device);
-      });
-
+      device.addEventListener('gattserverdisconnected', () => this.handleDisconnection(device));
       return device;
     } catch (error) {
       if (error instanceof Error) {
